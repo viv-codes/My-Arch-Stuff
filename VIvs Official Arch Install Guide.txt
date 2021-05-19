@@ -1,0 +1,134 @@
+ls /sys/firmware/efi/efivars
+
+ip link
+
+ping archlinux.org
+
+timedatectl set-ntp true
+
+fdisk -l
+
+=========================================================
+Depending on the results of the command in line 1, either follow directions for BIOS/MBR or UEFI/GPT
+
+--- BIOS/MBR ---
+
+parted /dev/sdX
+mklabel msdos
+mkpart linux-swap 1MiB 7700MiB (for 8Gb swap)
+mkpart primary 7700MiB 100%
+print
+quit
+
+mkfs.ext4 /dev/root_partition
+mkswap /dev/swap_partition
+
+--- UEFI/GPT ---
+
+parted /dev/sdX
+mklabel gpt
+mkpart ESP fat32 1MiB 513MiB
+set 1 boot on
+name 1 efi
+mkpart linux-swap 513MiB 8213MiB
+name 2 swap
+mkpart primary 8213MiB 100%
+name 3 root
+print
+quit
+
+mkfs.ext4 /dev/root_partition
+mkfs.vfat -F32 /dev/EFI_partition
+mkswap /dev/swap_partition
+mkdir /mnt/efi
+mount /dev/EFI_partition /mnt/efi
+
+=========================================================
+
+mount /dev/root_partition /mnt
+swapon /dev/swap_partition
+
+pacstrap /mnt base linux linux-firmware vim (broadcom-wl if youre installing on macbook, synaptics if installing on TB)
+
+genfstab -U /mnt >> /mnt/etc/fstab
+
+arch-chroot /mnt
+
+ln -sf /usr/share/zoneinfo/US/Eastern /etc/localtime
+
+hwclock --systohc
+
+vim /etc/locale.gen #and uncomment en_US.UTF-8 UTF-8
+
+locale-gen
+
+vim /etc/locale.conf #and add LANG=en_US.UTF-8
+
+vim /etc/hostname #and write the hostname
+
+vim /etc/hosts #and enter the following:
+127.0.0.1	localhost
+::1			localhost
+127.0.1.1	my_hostname.localdomain	my_hostname
+
+mkinitcpio -P
+
+passwd
+
+pacman -Sy
+
+pacman -S networkmanager xorg xorg-server gnome gnome-tweaks gdm firefox grub vi(efibootmgr, if using UEFI boot) 
+
+=========================================================
+IF USING BIOS/MBR
+
+grub-install --target=i386-pc /dev/sdX #NOT /dev/sda1, use /dev/sda instead
+
+
+IF USING UEFI/GPT
+
+grub-install --target=x86_64-efi --efi-directory=/mnt/efi --bootloader-id=GRUB #I might be wrong about the mount point, if not then use the drive label
+
+=========================================================
+
+grub-mkconfig -o /boot/grub/grub.cfg
+
+If installing on macbook, you may also need to install iwctl, IDK
+
+exit chroot
+
+Reboot
+
+systemctl start gdm.service
+systemctl enable gdm.service
+systemctl enable NetworkManager.service
+
+# pacman --sync sudo
+# useradd --create-home viv
+# passwd viv
+# usermod --append --groups wheel viv
+# visudo
+
+uncomment the following line so it looks as follows:
+## Uncomment to allow members of group wheel to execute any command
+%wheel ALL=(ALL) ALL
+
+enable microcode updates
+
+--------------------------------------------------------
+If installing on toughbook, you will need to do the following in order to fix the trackpad:
+# vim /etc/default/grub
+
+add i8042.nomux=1 i8042.noloop=1 to the line GRUB_CMDLINE_LINUX_DEFAULT. Do not delete what's already there. 
+
+--------------------------------------------------------
+
+Sources:
+Download: https://archlinux.org/download/
+Elly’s guide: https://gist.github.com/Johnystar/05643ead6dce7ec953bf592874b6b63c 
+THE Install Guide: https://wiki.archlinux.org/title/Installation_guide 
+Partitioning guide: https://computingforgeeks.com/install-arch-linux-with-lvm-on-uefi-system/ 
+Format the EFI partition: https://wiki.archlinux.org/title/EFI_system_partition 
+Install GRUB: https://wiki.archlinux.org/title/GRUB 
+Swap space calculator: https://www.convertunits.com/from/gigabyte/to/MiB 
+TB touchpad fixx: https://ubuntuforums.org/showthread.php?t=844968&p=5290024#post5290024
